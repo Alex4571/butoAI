@@ -146,7 +146,7 @@
       <div id="logo-icon">B</div>
       <div>
         <div id="logo-text">Buto <span class="free-badge">FREE</span></div>
-        <div id="logo-sub">AI Worker • Gemini Powered</div>
+        <div id="logo-sub">AI Worker • Gemini Powered ✓</div>
       </div>
     </div>
 
@@ -197,7 +197,7 @@
         <input type="password" id="api-key-input" placeholder="AIza..." autocomplete="off" oninput="onKeyInput()">
         <button id="eye-btn" onclick="toggleEye()">👁</button>
       </div>
-      <div id="api-status">Get free key at aistudio.google.com</div>
+      <div id="api-status">✓ Buto is active &amp; FREE!</div>
       <button id="save-key-btn" onclick="saveKey()">✓ Save &amp; Activate Buto Free</button>
     </div>
   </div>
@@ -352,7 +352,7 @@ window.__loadApps();
 
 <script>
 // ── STATE ──
-let apiKey = localStorage.getItem('buto_gemini_key') || '';
+let apiKey = localStorage.getItem('buto_gemini_key') || 'AIzaSyBw6oZDH6ntee2-3dz7gdnxhKD_dMD1TCM';
 let convs = JSON.parse(localStorage.getItem('buto_convs2') || '[]');
 let convId = null;
 let msgs = [];
@@ -360,7 +360,10 @@ let keyVis = false;
 
 // ── INIT ──
 (function(){
-  if(apiKey){ document.getElementById('api-key-input').value=apiKey; applyKey(false); }
+  // Auto-activate with built-in key
+  localStorage.setItem('buto_gemini_key', apiKey);
+  document.getElementById('api-key-input').value=apiKey;
+  applyKey(false);
   renderConvList();
 })();
 
@@ -368,7 +371,7 @@ let keyVis = false;
 function onKeyInput(){
   const v=document.getElementById('api-key-input').value.trim();
   const s=document.getElementById('api-status');
-  if(!v){ s.textContent='Get free key at aistudio.google.com'; s.style.color='var(--muted)'; return; }
+  if(!v){ s.textContent='✓ Buto is active &amp; FREE!'; s.style.color='var(--muted)'; return; }
   if(v.startsWith('AIza')){ s.textContent='✓ Valid format — click Save & Activate'; s.style.color='var(--success)'; }
   else{ s.textContent='⚠ Key should start with AIza...'; s.style.color='var(--warn)'; }
 }
