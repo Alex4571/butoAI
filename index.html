@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Buto — AI Worker</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a24;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.15);
+    --accent: #6c63ff;
+    --accent2: #a78bfa;
+    --accent3: #38bdf8;
+    --text: #f0f0ff;
+    --muted: #8888aa;
+    --success: #34d399;
+    --warn: #fbbf24;
+    --danger: #f87171;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); overflow: hidden; }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: linear-gradient(rgba(108,99,255,0.04) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(108,99,255,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none; z-index: 0;
+  }
+
+  #app { display: flex; height: 100vh; position: relative; z-index: 1; }
+
+  /* SIDEBAR */
+  #sidebar {
+    width: 260px; min-width: 260px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    transition: transform 0.3s;
+  }
+  #logo {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  #logo-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 800; color: #fff;
+    box-shadow: 0 0 20px rgba(108,99,255,0.4);
+    flex-shrink: 0;
+  }
+  #logo-text { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+  #logo-sub { font-size: 10px; color: var(--muted); font-family: var(--mono); }
+
+  #sidebar-tabs {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex; gap: 4px;
+  }
+  .stab {
+    flex: 1; padding: 6px 4px; font-size: 11px; font-weight: 600;
+    text-align: center; cursor: pointer; border-radius: 6px;
+    color: var(--muted); border: none; background: none; font-family: var(--sans);
+    transition: all 0.2s;
+  }
+  .stab.active { background: var(--surface2); color: var(--text); }
+
+  #sidebar-content { flex: 1; overflow-y: auto; padding: 12px; }
+  #sidebar-content::-webkit-scrollbar { width: 3px; }
+  #sidebar-content::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .section-label { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin: 12px 0 6px; }
+
+  .chat-item {
+    padding: 8px 10px; border-radius: 8px; cursor: pointer;
+    font-size: 12px; color: var(--muted); margin-bottom: 2px;
+    border: 1px solid transparent; transition: all 0.2s;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .chat-item:hover { background: var(--surface2); color: var(--text); border-color: var(--border); }
+  .chat-item.active { background: var(--surface2); color: var(--accent2); border-color: var(--border2); }
+
+  #new-chat-btn {
+    margin: 0 0 8px; width: 100%; padding: 8px 12px;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    border: none; border-radius: 8px; color: #fff;
+    font-family: var(--sans); font-size: 12px; font-weight: 700;
+    cursor: pointer; display: flex; align-items: center; gap: 6px;
+    transition: opacity 0.2s; letter-spacing: 0.3px;
+  }
+  #new-chat-btn:hover { opacity: 0.85; }
+
+  #api-section { padding: 12px; border-top: 1px solid var(--border); }
+  #api-section label { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 6px; }
+  #api-key-input {
+    width: 100%; padding: 7px 10px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-family: var(--mono); font-size: 11px;
+    outline: none; transition: border 0.2s;
+  }
+  #api-key-input:focus { border-color: var(--accent); }
+  #api-status { font-size: 10px; margin-top: 5px; color: var(--muted); }
+
+  /* MAIN */
+  #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  #topbar {
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(10,10,15,0.6); backdrop-filter: blur(12px);
+  }
+  #mode-tabs { display: flex; gap: 4px; margin-left: auto; }
+  .mode-tab {
+    padding: 5px 14px; font-size: 11px; font-weight: 700;
+    border-radius: 20px; cursor: pointer; border: 1px solid var(--border);
+    color: var(--muted); background: none; font-family: var(--sans); transition: all 0.2s;
+  }
+  .mode-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  #topbar-title { font-size: 14px; font-weight: 700; color: var(--text); }
+  #firebase-badge {
+    font-size: 10px; font-family: var(--mono); padding: 3px 8px;
+    background: rgba(52,211,153,0.1); color: var(--success);
+    border: 1px solid rgba(52,211,153,0.3); border-radius: 20px;
+  }
+
+  /* CHAT */
+  #chat-view { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  #messages {
+    flex: 1; overflow-y: auto; padding: 20px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  #messages::-webkit-scrollbar { width: 3px; }
+  #messages::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .msg { display: flex; gap: 10px; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .msg.user { flex-direction: row-reverse; }
+  .avatar {
+    width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 800;
+  }
+  .avatar.ai { background: linear-gradient(135deg, var(--accent), var(--accent3)); color: #fff; box-shadow: 0 0 12px rgba(108,99,255,0.3); }
+  .avatar.user { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+  .bubble {
+    max-width: 70%; padding: 12px 16px; border-radius: 14px;
+    font-size: 14px; line-height: 1.7;
+  }
+  .bubble.ai { background: var(--surface2); border: 1px solid var(--border); border-top-left-radius: 4px; }
+  .bubble.user { background: var(--accent); color: #fff; border-top-right-radius: 4px; }
+  .bubble pre { font-family: var(--mono); font-size: 12px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; overflow-x: auto; margin-top: 8px; white-space: pre-wrap; word-break: break-all; }
+  .bubble code { font-family: var(--mono); font-size: 12px; background: rgba(255,255,255,0.08); padding: 2px 5px; border-radius: 4px; }
+  .bubble .html-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .bubble .html-actions button {
+    font-size: 11px; padding: 4px 12px; border-radius: 6px;
+    border: 1px solid var(--border2); background: rgba(255,255,255,0.05);
+    color: var(--text); cursor: pointer; font-family: var(--sans); font-weight: 600;
+    transition: all 0.2s;
+  }
+  .bubble .html-actions button:hover { background: var(--accent); border-color: var(--accent); }
+
+  /* Preview panel */
+  #preview-panel {
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    display: none; flex-direction: column;
+  }
+  #preview-panel.open { display: flex; height: 45%; }
+  #preview-topbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; border-bottom: 1px solid var(--border);
+    font-size: 12px; color: var(--muted);
+  }
+  #preview-url { flex: 1; font-family: var(--mono); font-size: 11px; }
+  #close-preview { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; }
+  #preview-iframe { flex: 1; border: none; background: #fff; }
+
+  /* Firestore panel */
+  #firestore-view {
+    flex: 1; overflow-y: auto; padding: 20px;
+    display: none; flex-direction: column; gap: 12px;
+  }
+  #firestore-view.open { display: flex; }
+  .fs-collection {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+  }
+  .fs-coll-header {
+    padding: 10px 14px; display: flex; align-items: center; gap: 8px;
+    cursor: pointer; font-size: 13px; font-weight: 700;
+    border-bottom: 1px solid var(--border);
+  }
+  .fs-coll-header span.count { font-size: 10px; background: var(--surface); padding: 2px 8px; border-radius: 20px; color: var(--muted); }
+  .fs-docs { padding: 8px; display: flex; flex-direction: column; gap: 4px; }
+  .fs-doc { font-size: 11px; font-family: var(--mono); background: var(--surface); padding: 8px 10px; border-radius: 8px; color: var(--muted); cursor: pointer; transition: all 0.2s; }
+  .fs-doc:hover { color: var(--text); border-color: var(--border2); }
+  .fs-doc .doc-id { color: var(--accent2); font-weight: 600; margin-bottom: 2px; font-size: 12px; }
+
+  /* Input */
+  #input-area {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    background: rgba(10,10,15,0.8); backdrop-filter: blur(12px);
+  }
+  #input-row { display: flex; gap: 8px; align-items: flex-end; }
+  #user-input {
+    flex: 1; min-height: 46px; max-height: 200px; resize: none;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 14px;
+    color: var(--text); font-family: var(--sans); font-size: 14px;
+    outline: none; line-height: 1.5; transition: border 0.2s;
+  }
+  #user-input:focus { border-color: var(--accent); }
+  #user-input::placeholder { color: var(--muted); }
+  #send-btn {
+    width: 46px; height: 46px; border-radius: 12px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s; box-shadow: 0 0 16px rgba(108,99,255,0.3);
+  }
+  #send-btn:hover { transform: scale(1.05); }
+  #send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  #send-btn svg { width: 18px; height: 18px; fill: #fff; }
+  #input-hints { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+  .hint-chip {
+    font-size: 11px; padding: 4px 10px; border-radius: 20px;
+    border: 1px solid var(--border); color: var(--muted);
+    cursor: pointer; background: none; font-family: var(--sans);
+    transition: all 0.2s; white-space: nowrap;
+  }
+  .hint-chip:hover { color: var(--accent2); border-color: var(--accent); }
+
+  /* Typing indicator */
+  .typing { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
+  .typing span { width: 6px; height: 6px; background: var(--accent2); border-radius: 50%; animation: bounce 1.2s infinite; }
+  .typing span:nth-child(2) { animation-delay: 0.2s; }
+  .typing span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--surface2); border: 1px solid var(--border2);
+    padding: 10px 16px; border-radius: 10px; font-size: 13px;
+    transform: translateY(60px); opacity: 0; transition: all 0.3s; z-index: 9999;
+  }
+  #toast.show { transform: none; opacity: 1; }
+
+  @media (max-width: 680px) {
+    #sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 100; transform: translateX(-100%); }
+    #sidebar.open { transform: none; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div id="logo">
+      <div id="logo-icon">B</div>
+      <div>
+        <div id="logo-text">Buto</div>
+        <div id="logo-sub">AI Worker v1.0</div>
+      </div>
+    </div>
+
+    <div id="sidebar-tabs">
+      <button class="stab active" onclick="switchSideTab('chats')">Chats</button>
+      <button class="stab" onclick="switchSideTab('apps')">My Apps</button>
+      <button class="stab" onclick="switchSideTab('settings')">Config</button>
+    </div>
+
+    <div id="sidebar-content">
+      <!-- Chats tab -->
+      <div id="tab-chats">
+        <button id="new-chat-btn" onclick="newChat()">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          New conversation
+        </button>
+        <div class="section-label">Recent</div>
+        <div id="chat-list"></div>
+      </div>
+      <!-- Apps tab -->
+      <div id="tab-apps" style="display:none">
+        <div class="section-label">Saved to Firestore</div>
+        <div id="apps-list"><div style="color:var(--muted);font-size:12px;padding:8px">No apps saved yet</div></div>
+      </div>
+      <!-- Settings tab -->
+      <div id="tab-settings" style="display:none">
+        <div class="section-label">Anthropic API Key</div>
+        <input type="password" id="api-key-input" placeholder="sk-ant-..." oninput="saveApiKey()" />
+        <div id="api-status">Enter your key to enable Buto</div>
+        <div class="section-label" style="margin-top:16px">Firebase</div>
+        <div style="font-size:11px;font-family:var(--mono);color:var(--success);background:rgba(52,211,153,0.08);padding:8px;border-radius:8px;border:1px solid rgba(52,211,153,0.2);word-break:break-all">
+          edrengineering-8db14 ✓ Connected
+        </div>
+        <div class="section-label" style="margin-top:16px">About</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.7">
+          Buto is your autonomous AI worker. It can build full web apps, answer any question, save code to Firestore, and deploy to GitHub Pages.
+        </div>
+      </div>
+    </div>
+
+    <div id="api-section" id="tab-chats-only">
+      <label>API Key</label>
+      <input type="password" id="api-key-mini" placeholder="sk-ant-..." oninput="syncApiKey(event)" />
+      <div id="api-status2" style="font-size:10px;margin-top:4px;color:var(--muted)">Required to use Buto</div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+    <div id="topbar">
+      <div id="topbar-title">Buto AI Worker</div>
+      <div id="firebase-badge">⚡ Firebase Connected</div>
+      <div id="mode-tabs">
+        <button class="mode-tab active" onclick="setMode('chat')">Chat</button>
+        <button class="mode-tab" onclick="setMode('firestore')">Firestore</button>
+      </div>
+    </div>
+
+    <!-- CHAT VIEW -->
+    <div id="chat-view">
+      <div id="messages">
+        <div class="msg">
+          <div class="avatar ai">B</div>
+          <div class="bubble ai">
+            <strong>Hey, I'm Buto! 👋</strong><br><br>
+            I'm your autonomous AI worker, connected to your Firebase project <code>edrengineering-8db14</code>.<br><br>
+            I can:
+            <ul style="margin:8px 0 0 16px;line-height:2">
+              <li>Build complete HTML/CSS/JS web apps</li>
+              <li>Save your projects directly to Firestore</li>
+              <li>Answer any question you have</li>
+              <li>Help you deploy to GitHub Pages</li>
+            </ul>
+            <br>Enter your Anthropic API key in the sidebar, then ask me anything!
+          </div>
+        </div>
+      </div>
+
+      <!-- Preview panel -->
+      <div id="preview-panel">
+        <div id="preview-topbar">
+          <svg width="12" height="12" fill="var(--success)" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4"/></svg>
+          <span id="preview-url">preview</span>
+          <button id="close-preview" onclick="closePreview()">×</button>
+        </div>
+        <iframe id="preview-iframe" sandbox="allow-scripts allow-same-origin"></iframe>
+      </div>
+
+      <div id="input-area">
+        <div id="input-hints">
+          <button class="hint-chip" onclick="quickPrompt('Build me a landing page for a tech startup')">🚀 Landing page</button>
+          <button class="hint-chip" onclick="quickPrompt('Build a dashboard with charts and stats cards')">📊 Dashboard</button>
+          <button class="hint-chip" onclick="quickPrompt('Create a todo app with local storage')">✅ Todo app</button>
+          <button class="hint-chip" onclick="quickPrompt('Show all my Firestore collections')">🔥 View Firestore</button>
+          <button class="hint-chip" onclick="quickPrompt('Build a contact form that saves to Firestore')">📧 Contact form → Firebase</button>
+        </div>
+        <div id="input-row">
+          <textarea id="user-input" placeholder="Ask Buto anything — build an app, answer a question, or manage your Firestore..." rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+          <button id="send-btn" onclick="sendMessage()" title="Send">
+            <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- FIRESTORE VIEW -->
+    <div id="firestore-view">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <div style="font-size:16px;font-weight:700">Firestore Database</div>
+        <button onclick="loadFirestore()" style="font-size:11px;padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer;font-family:var(--sans)">↺ Refresh</button>
+      </div>
+      <div id="fs-collections"><div style="color:var(--muted);font-size:13px">Loading Firestore data...</div></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, collection, getDocs, addDoc, doc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAIqvyxDsDA9hgroUwBICEbNwBTzwgy8x8",
+  authDomain: "edrengineering-8db14.firebaseapp.com",
+  databaseURL: "https://edrengineering-8db14-default-rtdb.firebaseio.com",
+  projectId: "edrengineering-8db14",
+  storageBucket: "edrengineering-8db14.firebasestorage.app",
+  messagingSenderId: "933900122481",
+  appId: "1:933900122481:web:ae4f55e27343a273aa5ed0",
+  measurementId: "G-QJJY29KSVG"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+window.__db = db;
+window.__fns = { collection, getDocs, addDoc, doc, setDoc, serverTimestamp };
+
+// Load Firestore collections
+window.loadFirestore = async function() {
+  const container = document.getElementById('fs-collections');
+  container.innerHTML = '<div style="color:var(--muted);font-size:13px">Loading...</div>';
+  try {
+    const collectionsToCheck = ['buto_projects','buto_chats','apps','projects','messages','users','contacts'];
+    let html = '';
+    let found = 0;
+    for (const cName of collectionsToCheck) {
+      try {
+        const snap = await getDocs(collection(db, cName));
+        if (snap.size > 0) {
+          found++;
+          html += `<div class="fs-collection">
+            <div class="fs-coll-header">
+              <svg width="14" height="14" fill="none" stroke="var(--accent2)" stroke-width="2" viewBox="0 0 24 24"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/></svg>
+              ${cName} <span class="count">${snap.size} docs</span>
+            </div>
+            <div class="fs-docs">`;
+          snap.forEach(d => {
+            const data = d.data();
+            const preview = JSON.stringify(data).slice(0,80);
+            html += `<div class="fs-doc"><div class="doc-id"># ${d.id}</div>${preview}${JSON.stringify(data).length > 80 ? '...' : ''}</div>`;
+          });
+          html += `</div></div>`;
+        }
+      } catch(e) {}
+    }
+    container.innerHTML = found === 0
+      ? '<div style="color:var(--muted);font-size:13px;padding:20px;text-align:center">No collections found yet.<br>Ask Buto to build an app that saves data!</div>'
+      : html;
+  } catch(e) {
+    container.innerHTML = `<div style="color:var(--danger);font-size:13px">Error: ${e.message}</div>`;
+  }
+};
+
+window.saveProjectToFirestore = async function(title, html, prompt) {
+  try {
+    const { addDoc, collection, serverTimestamp } = window.__fns;
+    const ref = await addDoc(collection(db, 'buto_projects'), {
+      title, html, prompt,
+      createdAt: serverTimestamp(),
+      source: 'Buto AI Worker'
+    });
+    loadAppsFromFirestore();
+    return ref.id;
+  } catch(e) { return null; }
+};
+
+window.saveChatToFirestore = async function(chatId, messages) {
+  try {
+    const { doc, setDoc, serverTimestamp } = window.__fns;
+    await setDoc(doc(db, 'buto_chats', chatId), {
+      messages: messages.map(m => ({role:m.role, content:m.content.slice(0,2000)})),
+      updatedAt: serverTimestamp()
+    });
+  } catch(e) {}
+};
+
+window.loadAppsFromFirestore = async function() {
+  try {
+    const snap = await getDocs(collection(db, 'buto_projects'));
+    const list = document.getElementById('apps-list');
+    if (snap.size === 0) { list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px">No apps saved yet</div>'; return; }
+    list.innerHTML = '';
+    snap.forEach(d => {
+      const data = d.data();
+      const item = document.createElement('div');
+      item.className = 'chat-item';
+      item.textContent = data.title || 'Untitled App';
+      item.onclick = () => { openPreview(data.html, data.title); showToast('Loaded: ' + data.title); };
+      list.appendChild(item);
+    });
+  } catch(e) {}
+};
+
+loadAppsFromFirestore();
+
+document.getElementById('firebase-badge').style.color = '#34d399';
+</script>
+
+<script>
+// STATE
+let apiKey = localStorage.getItem('buto_api_key') || '';
+let conversations = JSON.parse(localStorage.getItem('buto_convos') || '[]');
+let currentConvId = null;
+let currentMessages = [];
+let currentMode = 'chat';
+let lastHtml = '';
+
+// Init
+if (apiKey) {
+  document.getElementById('api-key-mini').value = apiKey;
+  document.getElementById('api-key-input').value = apiKey;
+  updateApiStatus();
+}
+renderChatList();
+
+function saveApiKey() {
+  apiKey = document.getElementById('api-key-input').value.trim();
+  document.getElementById('api-key-mini').value = apiKey;
+  localStorage.setItem('buto_api_key', apiKey);
+  updateApiStatus();
+}
+function syncApiKey(e) {
+  apiKey = e.target.value.trim();
+  document.getElementById('api-key-input').value = apiKey;
+  localStorage.setItem('buto_api_key', apiKey);
+  updateApiStatus();
+}
+function updateApiStatus() {
+  const ok = apiKey.startsWith('sk-ant-');
+  const s1 = document.getElementById('api-status');
+  const s2 = document.getElementById('api-status2');
+  const msg = ok ? '✓ API key saved' : 'Enter a valid sk-ant-... key';
+  const col = ok ? 'var(--success)' : 'var(--warn)';
+  if (s1) { s1.textContent = msg; s1.style.color = col; }
+  if (s2) { s2.textContent = msg; s2.style.color = col; }
+}
+
+function switchSideTab(tab) {
+  ['chats','apps','settings'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = t===tab ? '' : 'none';
+  });
+  document.querySelectorAll('.stab').forEach((b,i) => {
+    b.classList.toggle('active', ['chats','apps','settings'][i]===tab);
+  });
+  if (tab === 'apps') window.loadAppsFromFirestore && window.loadAppsFromFirestore();
+}
+
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-tab').forEach(b => b.classList.toggle('active', b.textContent.toLowerCase()===mode));
+  document.getElementById('chat-view').style.display = mode==='chat' ? 'flex' : 'none';
+  const fv = document.getElementById('firestore-view');
+  fv.style.display = fv.classList.toggle('open', mode==='firestore') ? 'flex' : 'none';
+  if (mode === 'firestore') window.loadFirestore && window.loadFirestore();
+}
+
+function newChat() {
+  currentConvId = 'conv_' + Date.now();
+  currentMessages = [];
+  document.getElementById('messages').innerHTML = `
+    <div class="msg">
+      <div class="avatar ai">B</div>
+      <div class="bubble ai">New conversation started. What can I build or help you with?</div>
+    </div>`;
+  closePreview();
+}
+
+function renderChatList() {
+  const list = document.getElementById('chat-list');
+  if (!conversations.length) { list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px">No conversations yet</div>'; return; }
+  list.innerHTML = conversations.slice(0,20).map((c,i) =>
+    `<div class="chat-item ${i===0?'active':''}" onclick="loadConv(${i})">${c.title || 'Conversation'}</div>`
+  ).join('');
+}
+
+function loadConv(i) {
+  const conv = conversations[i];
+  currentConvId = conv.id;
+  currentMessages = conv.messages || [];
+  const msgs = document.getElementById('messages');
+  msgs.innerHTML = '';
+  currentMessages.forEach(m => appendBubble(m.role, m.content, false));
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function quickPrompt(text) {
+  document.getElementById('user-input').value = text;
+  sendMessage();
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+}
+
+async function sendMessage() {
+  if (!apiKey) { showToast('⚠️ Add your API key in the sidebar'); return; }
+  const input = document.getElementById('user-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = ''; input.style.height = 'auto';
+  document.getElementById('send-btn').disabled = true;
+
+  appendBubble('user', text);
+  currentMessages.push({ role: 'user', content: text });
+
+  const typingId = appendTyping();
+
+  const systemPrompt = `You are Buto, an elite autonomous AI worker. You are connected to Firebase project "edrengineering-8db14".
+
+Your capabilities:
+1. BUILD complete, beautiful, self-contained HTML/CSS/JS web apps when asked
+2. ANSWER any question clearly and helpfully
+3. SAVE apps to Firestore automatically (tell the user when you do)
+4. EXPLAIN code, debug issues, teach concepts
+
+When building HTML apps:
+- Output the COMPLETE HTML as a code block using \`\`\`html ... \`\`\`
+- Make it production-quality, beautiful, responsive, with real content
+- Include all CSS and JS inline
+- If the app needs Firebase, use the config: apiKey:"AIzaSyAIqvyxDsDA9hgroUwBICEbNwBTzwgy8x8", projectId:"edrengineering-8db14"
+- After the code block, add: SAVE_TO_FIRESTORE:[title of app]
+
+Always be direct, capable, and confident. You are a powerful AI worker named Buto.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 8000,
+        system: systemPrompt,
+        messages: currentMessages.slice(-20)
+      })
+    });
+    const data = await res.json();
+    removeTyping(typingId);
+
+    if (data.error) throw new Error(data.error.message);
+
+    const reply = data.content.map(b => b.type==='text' ? b.text : '').join('');
+    currentMessages.push({ role: 'assistant', content: reply });
+
+    // Extract HTML if present
+    const htmlMatch = reply.match(/```html\s*([\s\S]*?)```/i);
+    const saveMatch = reply.match(/SAVE_TO_FIRESTORE:(.+)/);
+
+    if (htmlMatch) {
+      lastHtml = htmlMatch[1].trim();
+      const displayReply = reply.replace(/```html[\s\S]*?```/i, '').replace(/SAVE_TO_FIRESTORE:.+/,'').trim();
+      appendBubble('ai', displayReply || 'Here\'s your app! 🎉', true, lastHtml, saveMatch ? saveMatch[1].trim() : 'My App');
+      openPreview(lastHtml, saveMatch ? saveMatch[1].trim() : 'Preview');
+      if (saveMatch && window.saveProjectToFirestore) {
+        const id = await window.saveProjectToFirestore(saveMatch[1].trim(), lastHtml, text);
+        if (id) showToast('💾 Saved to Firestore: ' + saveMatch[1].trim());
+      }
+    } else {
+      appendBubble('ai', reply);
+    }
+
+    // Save conversation
+    if (!currentConvId) currentConvId = 'conv_' + Date.now();
+    const title = text.slice(0, 40) + (text.length > 40 ? '...' : '');
+    const existing = conversations.findIndex(c => c.id === currentConvId);
+    const convObj = { id: currentConvId, title, messages: currentMessages };
+    if (existing >= 0) conversations[existing] = convObj;
+    else conversations.unshift(convObj);
+    if (conversations.length > 30) conversations.pop();
+    localStorage.setItem('buto_convos', JSON.stringify(conversations));
+    renderChatList();
+    if (window.saveChatToFirestore) window.saveChatToFirestore(currentConvId, currentMessages);
+
+  } catch(e) {
+    removeTyping(typingId);
+    appendBubble('ai', '⚠️ Error: ' + e.message + '\n\nCheck your API key and try again.');
+  }
+  document.getElementById('send-btn').disabled = false;
+}
+
+function appendBubble(role, content, hasCode=false, html='', appTitle='') {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+
+  const avatar = `<div class="avatar ${role}">${role==='ai'?'B':'U'}</div>`;
+  let formatted = content
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre>$2</pre>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>');
+
+  let actions = '';
+  if (hasCode && html) {
+    actions = `<div class="html-actions">
+      <button onclick="openPreview(window.__lastHtml, '${appTitle.replace(/'/g,"\\'")}')">▶ Preview</button>
+      <button onclick="copyHtml()">Copy HTML</button>
+      <button onclick="downloadHtml('${appTitle.replace(/'/g,"\\'")}')">⬇ Download</button>
+    </div>`;
+    window.__lastHtml = html;
+  }
+
+  div.innerHTML = role === 'user'
+    ? `<div class="bubble user">${formatted}</div>${avatar}`
+    : `${avatar}<div class="bubble ai">${formatted}${actions}</div>`;
+
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function appendTyping() {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'msg';
+  div.id = 'typing_' + Date.now();
+  div.innerHTML = `<div class="avatar ai">B</div><div class="bubble ai"><div class="typing"><span></span><span></span><span></span></div></div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div.id;
+}
+
+function removeTyping(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+function openPreview(html, title='Preview') {
+  const panel = document.getElementById('preview-panel');
+  panel.classList.add('open');
+  document.getElementById('preview-iframe').srcdoc = html;
+  document.getElementById('preview-url').textContent = title;
+  window.__lastHtml = html;
+}
+
+function closePreview() {
+  document.getElementById('preview-panel').classList.remove('open');
+}
+
+function copyHtml() {
+  if (window.__lastHtml) navigator.clipboard.writeText(window.__lastHtml).then(() => showToast('HTML copied!'));
+}
+
+function downloadHtml(title='buto-app') {
+  if (!window.__lastHtml) return;
+  const a = document.createElement('a');
+  a.href = 'data:text/html;charset=utf-8,' + encodeURIComponent(window.__lastHtml);
+  a.download = title.replace(/\s+/g,'-').toLowerCase() + '.html';
+  a.click();
+  showToast('Downloaded: ' + a.download);
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
